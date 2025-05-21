@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.DS_Store
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Environment files
+.env
+
+# Model file (if not tracked)
+# model/
