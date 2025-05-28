@@ -28,7 +28,13 @@ def predict(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         os.remove(temp_filename)
-        
+
+# GET リクエスト用ヘルスチェック
 @app.get("/")
 def health_check():
     return {"status": "ok"}
+
+# HEAD リクエストにも明示的に対応（Uptime Robot対策）
+@app.head("/")
+def health_check_head():
+    return {}
