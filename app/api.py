@@ -28,3 +28,7 @@ def predict(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         os.remove(temp_filename)
+        
+@app.get("/")
+def health_check():
+    return {"status": "ok"}

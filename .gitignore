@@ -16,3 +16,6 @@ venv/
 
 # Model file (if not tracked)
 # model/
+
+#Sample
+data/
