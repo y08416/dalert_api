@@ -2,7 +2,31 @@ import numpy as np
 import tensorflow as tf
 import cv2
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
 
+# .env読み込みしてAPIキー設定
+load_dotenv()
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# おしゃれアドバイス生成（GPT-3.5）
+def generate_advice(label: str, reason: str) -> str:
+    prompt = f"""
+    この服装は「{label}」と判断されました。理由は「{reason}」です。
+    さらにおしゃれにするにはどうすればよいか、1文で具体的なアドバイスをください。
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7
+    )
+
+    return response.choices[0].message.content.strip()
+
+
+# Grad-CAMを使った判定と理由の説明
 def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     img_size = (224, 224)
 
@@ -31,7 +55,7 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
         cam += w * conv_outputs[:, :, i]
 
     cam = np.maximum(cam, 0)
-    cam = cam / np.max(cam + 1e-8)  # 安定化
+    cam = cam / np.max(cam + 1e-8)
     cam = cv2.resize(np.array(cam), img_size)
 
     # 注目領域の重心を計算
@@ -41,7 +65,7 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
         cx = int(moments["m10"] / moments["m00"])
         cy = int(moments["m01"] / moments["m00"])
     else:
-        cx, cy = img_size[0] // 2, img_size[1] // 2  # fallback
+        cx, cy = img_size[0] // 2, img_size[1] // 2
 
     # 位置ベースの判定
     if cy < img_size[1] * 0.4:
@@ -65,6 +89,6 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
 
     # クラスに応じた文章生成
     class_label = "おしゃれ着" if int(pred_index) == 1 else "ダル着"
-
     reason = f"{position}の{color_desc}に注目し、{class_label}と判断しました。"
+
     return class_label, reason

@@ -1,18 +1,31 @@
-import sys
-from model_loader import load_model
-from explain import generate_explanation
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+import os, uuid, shutil
 
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("使い方: python app/main.py [画像ファイルパス]")
-        sys.exit(1)
+from app.model_loader import load_model
+from app.explain import generate_explanation, generate_advice
 
-    image_path = sys.argv[1]
+load_dotenv()
+app = FastAPI()
 
-    print("モデル読み込み中...")
-    model = load_model()
-    print("モデル読み込み完了！")
+model = load_model("model/model.h5")
+UPLOAD_DIR = "tmp_uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    label, reason = generate_explanation(model, image_path)
-    print(f"この服は: {label}")
-    print(f"理由: {reason}")
+@app.post("/predict")
+def predict(file: UploadFile = File(...)):
+    temp_filename = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}_{file.filename}")
+    with open(temp_filename, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        label, reason = generate_explanation(model, temp_filename)
+        advice = generate_advice(label, reason)
+        return JSONResponse(content={
+            "label": label,
+            "reason": reason,
+            "advice": advice
+        })
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
