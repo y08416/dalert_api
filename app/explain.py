@@ -2,13 +2,13 @@ import numpy as np
 import tensorflow as tf
 import cv2
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
-import openai
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
 
 # .env 読み込み & OpenAI APIキー設定
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # アドバイス生成関数（GPT-3.5）
 def generate_advice(label: str, reason: str) -> str:
@@ -19,7 +19,7 @@ def generate_advice(label: str, reason: str) -> str:
     print("📤 OpenAI prompt:", prompt)  # ← ログ出力
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
