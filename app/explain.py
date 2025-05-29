@@ -16,6 +16,7 @@ def generate_advice(label: str, reason: str) -> str:
     この服装は「{label}」と判断されました。理由は「{reason}」です。
     さらにおしゃれにするにはどうすればよいか、1文で具体的なアドバイスをください。
     """
+    print("📤 OpenAI prompt:", prompt)  # ← ログ出力
 
     try:
         response = openai.ChatCompletion.create(
@@ -23,9 +24,11 @@ def generate_advice(label: str, reason: str) -> str:
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
-        return response.choices[0].message.content.strip()
+        advice = response.choices[0].message.content.strip()
+        print("✅ OpenAI advice:", advice)  # ← ログ出力
+        return advice
     except Exception as e:
-        print("OpenAI API error:", e)
+        print("❌ OpenAI API error:", e)  # ← エラー内容確認
         return "アドバイス生成に失敗しました。"
 
 # Grad-CAMを使った理由付き分類
