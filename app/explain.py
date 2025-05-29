@@ -2,31 +2,33 @@ import numpy as np
 import tensorflow as tf
 import cv2
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
-from openai import OpenAI
+import openai
 import os
 from dotenv import load_dotenv
 
-# .env読み込みしてAPIキー設定
+# .env 読み込み & OpenAI APIキー設定
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# おしゃれアドバイス生成（GPT-3.5）
+# アドバイス生成関数（GPT-3.5）
 def generate_advice(label: str, reason: str) -> str:
     prompt = f"""
     この服装は「{label}」と判断されました。理由は「{reason}」です。
     さらにおしゃれにするにはどうすればよいか、1文で具体的なアドバイスをください。
     """
 
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
-    )
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print("OpenAI API error:", e)
+        return "アドバイス生成に失敗しました。"
 
-    return response.choices[0].message.content.strip()
-
-
-# Grad-CAMを使った判定と理由の説明
+# Grad-CAMを使った理由付き分類
 def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     img_size = (224, 224)
 
@@ -35,7 +37,7 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     img_array = img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0) / 255.0
 
-    # Grad-CAMの準備
+    # Grad-CAM モデル
     grad_model = tf.keras.models.Model(
         [model.inputs], [model.get_layer(last_conv_layer_name).output, model.output]
     )
@@ -49,16 +51,15 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     conv_outputs = conv_outputs[0]
     weights = tf.reduce_mean(grads, axis=(0, 1))
 
-    # ヒートマップ生成（.numpy()は使わない）
+    # ヒートマップ生成
     cam = np.zeros(conv_outputs.shape[0:2], dtype=np.float32)
     for i, w in enumerate(weights):
         cam += w * conv_outputs[:, :, i]
-
     cam = np.maximum(cam, 0)
     cam = cam / np.max(cam + 1e-8)
-    cam = cv2.resize(np.array(cam), img_size)
+    cam = cv2.resize(cam, img_size)
 
-    # 注目領域の重心を計算
+    # 注目重心の判定
     heatmap_thresh = np.where(cam > 0.5, 1, 0).astype(np.uint8)
     moments = cv2.moments(heatmap_thresh)
     if moments["m00"] != 0:
@@ -67,7 +68,6 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     else:
         cx, cy = img_size[0] // 2, img_size[1] // 2
 
-    # 位置ベースの判定
     if cy < img_size[1] * 0.4:
         position = "上半身"
     elif cy > img_size[1] * 0.6:
@@ -75,19 +75,14 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     else:
         position = "全体"
 
-    # カラー特徴の取得
+    # カラー特徴
     img_cv = cv2.imread(img_path)
     img_resized = cv2.resize(img_cv, img_size)
     hsv = cv2.cvtColor(img_resized, cv2.COLOR_BGR2HSV)
-    hue_mean = hsv[..., 0].mean()
     saturation_mean = hsv[..., 1].mean()
+    color_desc = "鮮やかな色味" if saturation_mean > 100 else "落ち着いた色味"
 
-    if saturation_mean > 100:
-        color_desc = "鮮やかな色味"
-    else:
-        color_desc = "落ち着いた色味"
-
-    # クラスに応じた文章生成
+    # ラベルと理由
     class_label = "おしゃれ着" if int(pred_index) == 1 else "ダル着"
     reason = f"{position}の{color_desc}に注目し、{class_label}と判断しました。"
 
