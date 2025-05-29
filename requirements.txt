@@ -4,3 +4,4 @@ openai
 python-dotenv
 tensorflow
 opencv-python
+python-multipart
