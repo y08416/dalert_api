@@ -7,3 +7,4 @@ opencv-python
 python-multipart
 Pillow
 supabase
+python-jose
