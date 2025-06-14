@@ -6,3 +6,4 @@ tensorflow
 opencv-python
 python-multipart
 Pillow
+supabase
