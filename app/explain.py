@@ -10,13 +10,13 @@ from dotenv import load_dotenv
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# アドバイス生成関数（GPT-3.5）
+# 🧠 アドバイス生成
 def generate_advice(label: str, reason: str) -> str:
     prompt = f"""
     この服装は「{label}」と判断されました。理由は「{reason}」です。
     さらにおしゃれにするにはどうすればよいか、1文で具体的なアドバイスをください。
     """
-    print("📤 OpenAI prompt:", prompt)  # ← ログ出力
+    print("📤 OpenAI prompt (advice):", prompt)
 
     try:
         response = client.chat.completions.create(
@@ -25,22 +25,44 @@ def generate_advice(label: str, reason: str) -> str:
             temperature=0.7
         )
         advice = response.choices[0].message.content.strip()
-        print("✅ OpenAI advice:", advice)  # ← ログ出力
+        print("✅ OpenAI advice:", advice)
         return advice
     except Exception as e:
-        print("❌ OpenAI API error:", e)  # ← エラー内容確認
+        print("❌ OpenAI API error (advice):", e)
         return "アドバイス生成に失敗しました。"
 
-# Grad-CAMを使った理由付き分類
+# ✏️ 理由文生成（自然な表現に）
+def generate_reason(label: str, position: str, color_desc: str) -> str:
+    prompt = f"""
+    ファッション画像の分類結果として、「{label}」と判定されました。
+    注目すべきポイントは「{position}の{color_desc}」です。
+    これらの要素に基づいて、自然な日本語で1文の理由を生成してください。
+    """
+    print("📤 OpenAI prompt (reason):", prompt)
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        reason = response.choices[0].message.content.strip()
+        print("✅ OpenAI reason:", reason)
+        return reason
+    except Exception as e:
+        print("❌ OpenAI API error (reason):", e)
+        return f"{position}の{color_desc}に注目し、{label}と判断しました。"
+
+# 📷 Grad-CAM + ラベル・特徴抽出 + GPTによる理由＆アドバイス生成
 def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     img_size = (224, 224)
 
-    # 画像読み込み
+    # 画像読み込みと前処理
     img = load_img(img_path, target_size=img_size)
     img_array = img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0) / 255.0
 
-    # Grad-CAM モデル
+    # Grad-CAM モデル構築
     grad_model = tf.keras.models.Model(
         [model.inputs], [model.get_layer(last_conv_layer_name).output, model.output]
     )
@@ -62,14 +84,13 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     cam = cam / np.max(cam + 1e-8)
     cam = cv2.resize(cam, img_size)
 
-    # 注目重心の判定
+    # 注目位置の推定
     heatmap_thresh = np.where(cam > 0.5, 1, 0).astype(np.uint8)
     moments = cv2.moments(heatmap_thresh)
     if moments["m00"] != 0:
-        cx = int(moments["m10"] / moments["m00"])
         cy = int(moments["m01"] / moments["m00"])
     else:
-        cx, cy = img_size[0] // 2, img_size[1] // 2
+        cy = img_size[1] // 2
 
     if cy < img_size[1] * 0.4:
         position = "上半身"
@@ -78,15 +99,20 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     else:
         position = "全体"
 
-    # カラー特徴
+    # カラー特徴量
     img_cv = cv2.imread(img_path)
     img_resized = cv2.resize(img_cv, img_size)
     hsv = cv2.cvtColor(img_resized, cv2.COLOR_BGR2HSV)
     saturation_mean = hsv[..., 1].mean()
     color_desc = "鮮やかな色味" if saturation_mean > 100 else "落ち着いた色味"
 
-    # ラベルと理由
+    # ラベル決定
     class_label = "おしゃれ着" if int(pred_index) == 1 else "ダル着"
-    reason = f"{position}の{color_desc}に注目し、{class_label}と判断しました。"
 
-    return class_label, reason
+    # OpenAIで自然な説明生成
+    reason = generate_reason(class_label, position, color_desc)
+
+    # OpenAIでアドバイス生成
+    advice = generate_advice(class_label, reason)
+
+    return class_label, reason, advice
