@@ -72,3 +72,7 @@ def predict(
 @app.head("/")
 def health_check():
     return {}
+
+@app.get("/")
+def root():
+    return {"status": "ok"}
