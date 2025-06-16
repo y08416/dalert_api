@@ -99,17 +99,32 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     else:
         position = "全体"
 
-    # カラー特徴量
+    # HSVによる色特徴量（Grad-CAM領域にマスク）
     img_cv = cv2.imread(img_path)
     img_resized = cv2.resize(img_cv, img_size)
     hsv = cv2.cvtColor(img_resized, cv2.COLOR_BGR2HSV)
-    saturation_mean = hsv[..., 1].mean()
-    color_desc = "鮮やかな色味" if saturation_mean > 100 else "落ち着いた色味"
+
+    mask = (cam > 0.5).astype(np.uint8)
+    masked_hsv = hsv * np.expand_dims(mask, axis=2)
+
+    hue_vals = masked_hsv[..., 0][mask == 1]
+    sat_vals = masked_hsv[..., 1][mask == 1]
+
+    hue_mean = hue_vals.mean() if hue_vals.size > 0 else 0
+    sat_mean = sat_vals.mean() if sat_vals.size > 0 else 0
+
+    if sat_mean > 100:
+        if hue_mean < 30 or hue_mean > 150:
+            color_desc = "暖色系で鮮やかな色味"
+        else:
+            color_desc = "寒色系で鮮やかな色味"
+    else:
+        color_desc = "落ち着いた色味"
 
     # ラベル決定
     class_label = "おしゃれ着" if int(pred_index) == 1 else "ダル着"
 
-    # OpenAIで自然な説明生成
+    # OpenAIで自然な理由文生成
     reason = generate_reason(class_label, position, color_desc)
 
     # OpenAIでアドバイス生成
