@@ -127,7 +127,10 @@ def generate_explanation(model, img_path, last_conv_layer_name="Conv_1"):
     # OpenAIで自然な理由文生成
     reason = generate_reason(class_label, position, color_desc)
 
-    # OpenAIでアドバイス生成
-    advice = generate_advice(class_label, reason)
+    # OpenAIでアドバイス生成（おしゃれ着ならスキップ）
+    if class_label == "おしゃれ着":
+        advice = "特に改善点はありません。今のままで十分おしゃれです！"
+    else:
+        advice = generate_advice(class_label, reason)
 
     return class_label, reason, advice
