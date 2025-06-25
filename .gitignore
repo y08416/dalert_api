@@ -19,6 +19,6 @@ venv/
 
 #Sample
 data/
-
+tmp_uploads/
 sample.jpeg
 sample1.jpeg
