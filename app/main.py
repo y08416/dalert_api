@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 import uuid
@@ -13,6 +14,15 @@ load_dotenv()
 
 # FastAPI アプリ作成
 app = FastAPI()
+
+# CORSミドルウェア追加（開発中は "*"、本番は制限推奨）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 例: ["https://dalert-web.vercel.app"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # モデルはグローバルに一度だけ読み込み
 model = load_model("model/model.h5")
