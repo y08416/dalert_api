@@ -8,3 +8,4 @@ python-multipart
 Pillow
 supabase
 python-jose
+pillow-heif
