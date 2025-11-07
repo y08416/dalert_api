@@ -12,25 +12,26 @@ from app.explain import generate_explanation
 # .env の読み込み
 load_dotenv()
 
-# FastAPI アプリ作成
+# FastAPIアプリ作成
 app = FastAPI()
 
-# CORSミドルウェア追加（開発中は "*"、本番は制限推奨）
+# CORSミドルウェア設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 例: ["https://dalert-web.vercel.app"]
+    allow_origins=["*"],  # 開発中は "*"、本番環境では特定のドメインに制限する
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# モデルはグローバルに一度だけ読み込み
+# モデルのロード（起動時に一度だけ読み込む）
 model = load_model("model/model.h5")
 
-# 一時アップロードフォルダ
+# 一時ファイル保存用フォルダ
 UPLOAD_DIR = "tmp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# 推論エンドポイント
 @app.post("/predict")
 def predict(file: UploadFile = File(...)):
     # 一時ファイルとして保存
@@ -39,27 +40,31 @@ def predict(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # 推論 + 理由文 + アドバイス生成
+        # 推論と理由・アドバイス生成
         label, reason, advice = generate_explanation(model, temp_filename)
 
+        # 結果をJSONで返す
         return JSONResponse(content={
-            "label": label,
-            "reason": reason,
-            "advice": advice
+            "label": label,     # 判定結果（例：おしゃれ or ダル着）
+            "reason": reason,   # 理由文（例：色の組み合わせが明るく統一されている）
+            "advice": advice    # アドバイス（例：彩度を上げるとより印象が良くなる）
         })
 
     except Exception as e:
+        # エラー発生時は500エラーを返す
         return JSONResponse(status_code=500, content={"error": str(e)})
 
     finally:
+        # 一時ファイルを削除
         if os.path.exists(temp_filename):
             os.remove(temp_filename)
 
-# RenderやUptimeRobotのヘルスチェック用
+# ヘルスチェック（RenderやUptimeRobotなどの監視用）
 @app.head("/")
 def health_check():
     return {}
 
+# 動作確認用エンドポイント
 @app.get("/")
 def root():
     return {"status": "ok"}
